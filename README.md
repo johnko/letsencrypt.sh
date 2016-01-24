@@ -1,6 +1,6 @@
 # letsencrypt.sh [![Build Status](https://travis-ci.org/lukas2511/letsencrypt.sh.svg?branch=master)](https://travis-ci.org/lukas2511/letsencrypt.sh)
 
-This is a client for signing certificates with an ACME-server (currently only provided by letsencrypt) implemented as a relatively simple bash-script.
+This is a client for signing certificates with an ACME-server (currently only provided by letsencrypt) implemented as a relatively simple shell-script (this fork is trying to not rely on bash).
 
 It uses the `openssl` utility for everything related to actually handling keys and certificates, so you need to have that installed.
 

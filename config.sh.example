@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 ########################################################
 # This is the main config file for letsencrypt.sh      #

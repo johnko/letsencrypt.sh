@@ -5,7 +5,8 @@
 
 set -e
 set -u
-set -o pipefail
+#bash only
+#set -o pipefail
 umask 077 # paranoid umask, we're creating private keys
 
 # Get the directory in which this script is stored

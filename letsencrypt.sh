@@ -437,7 +437,7 @@ sign_domain() {
   echo " + Generating signing request..."
   SAN=""
   for altname in ${altnames}; do
-    SAN+="DNS:${altname}, "
+    SAN="${SAN}DNS:${altname}, "
   done
   SAN="${SAN%%, }"
   local tmp_openssl_cnf

@@ -5,6 +5,7 @@
 
 set -e
 set -u
+set -x
 #bash only
 #set -o pipefail
 umask 077 # paranoid umask, we're creating private keys
@@ -286,40 +287,32 @@ signed_request() {
 extract_altnames() {
   csr="${1}" # the CSR itself (not a file)
 
-  if ! <<<"${csr}" openssl req -verify -noout 2>/dev/null; then
+  if ! cat "${csr}" | openssl req -verify -noout 2>/dev/null; then
     _exiterr "Certificate signing request isn't valid"
   fi
 
-  reqtext="$( <<<"${csr}" openssl req -noout -text )"
-  if <<<"$reqtext" grep -q '^[[:space:]]*X509v3 Subject Alternative Name:[[:space:]]*$'; then
-    # SANs used, extract these
-    altnames="$( <<<"${reqtext}" grep -A1 '^[[:space:]]*X509v3 Subject Alternative Name:[[:space:]]*$' | tail -n1 )"
-    # split to one per line:
-    altnames="$( <<<"${altnames}" _sed -e 's/^[[:space:]]*//; s/, /\'$'\n''/' )"
+  reqtext="$( cat "${csr}" | openssl req -noout -text )"
+  if cat "${csr}" | openssl req -noout -text | grep -q '^[[:space:]]*X509v3 Subject Alternative Name:[[:space:]]*$'; then
     # we can only get DNS: ones signed
-    if [ -n "$( <<<"${altnames}" grep -v '^DNS:' )" ]; then
+    if [ -n "$( cat "${csr}" | openssl req -noout -text | grep -A1 '^[[:space:]]*X509v3 Subject Alternative Name:[[:space:]]*$' | tail -n1 | _sed -e 's/^[[:space:]]*//; s/, /\'$'\n''/' | grep -v '^DNS:' )" ]; then
       _exiterr "Certificate signing request contains non-DNS Subject Alternative Names"
     fi
     # strip away the DNS: prefix
-    altnames="$( <<<"${altnames}" _sed -e 's/^DNS://' )"
+    altnames="$( cat "${csr}" | openssl req -noout -text | grep -A1 '^[[:space:]]*X509v3 Subject Alternative Name:[[:space:]]*$' | tail -n1 | _sed -e 's/^[[:space:]]*//; s/, /\'$'\n''/' | _sed -e 's/^DNS://' )"
     echo "$altnames"
 
   else
     # No SANs, extract CN
-    altnames="$( <<<"${reqtext}" grep '^[[:space:]]*Subject:' | _sed -e 's/.* CN=([^ /,]*).*/\1/' )"
+    altnames="$( cat "${csr}" | openssl req -noout -text | grep '^[[:space:]]*Subject:' | _sed -e 's/.* CN=([^ /,]*).*/\1/' )"
     echo "$altnames"
   fi
 }
 
 # Create certificate for domain(s) and outputs it FD 3
 sign_csr() {
-  csr="${1}" # the CSR itself (not a file)
-
-  if { true >&3; } 2>/dev/null; then
-    : # fd 3 looks OK
-  else
-    _exiterr "sign_csr: FD 3 not open"
-  fi
+  csr="${1}" # the CSR itself (is a file)
+  shift
+  output="${1}"
 
   shift 1 || true
   altnames="${*:-}"
@@ -394,15 +387,19 @@ sign_csr() {
 
   # Finally request certificate from the acme-server and store it in cert-${timestamp}.pem and link from cert.pem
   echo " + Requesting certificate..."
-  csr64="$( <<<"${csr}" openssl req -outform DER | urlbase64)"
+  csr64="$( cat "${csr}" | openssl req -outform DER | urlbase64)"
   crt64="$(signed_request "${CA_NEW_CERT}" '{"resource": "new-cert", "csr": "'"${csr64}"'"}' | openssl base64 -e)"
-  crt="$( printf -- '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' "${crt64}" )"
+  #crt="$( printf -- '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' "${crt64}" )"
 
   # Try to load the certificate to detect corruption
   echo " + Checking certificate..."
-  _openssl x509 -text <<<"${crt}"
+  printf -- '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' "${crt64}" | _openssl x509 -text
 
-  echo "${crt}" >&3
+  if [ "x" = "x${output}" ]; then
+    printf -- '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' "${crt64}"
+  else
+    printf -- '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' "${crt64}" >${output}
+  fi
 
   unset challenge_token
   echo " + Done!"
@@ -451,7 +448,7 @@ sign_domain() {
   rm -f "${tmp_openssl_cnf}"
 
   crt_path="${BASEDIR}/certs/${domain}/cert-${timestamp}.pem"
-  sign_csr "$(< "${BASEDIR}/certs/${domain}/cert-${timestamp}.csr" )" ${altnames} 3>"${crt_path}"
+  sign_csr "${BASEDIR}/certs/${domain}/cert-${timestamp}.csr" "${crt_path}" ${altnames}
 
   # Create fullchain.pem
   echo " + Creating fullchain.pem..."
@@ -554,10 +551,6 @@ command_sign_domains() {
 # Usage: --signcsr (-s) path/to/csr.pem
 # Description: Sign a given CSR, output CRT on stdout (advanced usage)
 command_sign_csr() {
-  # redirect stdout to stderr
-  # leave stdout over at fd 3 to output the cert
-  exec 3>&1 1>&2
-
   init_system
 
   csrfile="${1}"
@@ -565,7 +558,7 @@ command_sign_csr() {
     _exiterr "Could not read certificate signing request ${csrfile}"
   fi
 
-  sign_csr "$(< "${csrfile}" )"
+  sign_csr "${csrfile}"
 
   exit 0
 }

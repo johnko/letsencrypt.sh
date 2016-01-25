@@ -237,7 +237,7 @@ http_request() {
     _exiterr "Unknown request method: ${1}"
   fi
 
-  if [ "${statuscode:0:1}" != "2" ]; then
+  if ! echo "${statuscode}" | grep "^2" ]; then
     echo "  + ERROR: An error occurred while sending ${1}-request to ${2} (Status ${statuscode})" >&2
     echo >&2
     echo "Details:" >&2
@@ -644,7 +644,7 @@ main() {
 
   [ -z "${@}" ] && eval set -- "--help"
 
-  while (( "${#}" )); do
+  while [ ${#} -gt 0 ]; do
     case "${1}" in
       --help|-h)
         command_help

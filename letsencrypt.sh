@@ -237,7 +237,7 @@ http_request() {
     _exiterr "Unknown request method: ${1}"
   fi
 
-  if ! echo "${statuscode}" | grep "^2" ]; then
+  if ! echo "${statuscode}" | grep "^2" >/dev/null 2>&1 ; then
     echo "  + ERROR: An error occurred while sending ${1}-request to ${2} (Status ${statuscode})" >&2
     echo >&2
     echo "Details:" >&2

@@ -10,7 +10,7 @@ set -u
 umask 077 # paranoid umask, we're creating private keys
 
 # Get the directory in which this script is stored
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPTDIR="$( cd "$( dirname "$0" )" && pwd )"
 BASEDIR="${SCRIPTDIR}"
 
 # Check for script dependencies
@@ -105,11 +105,11 @@ load_config() {
   [[ -n "${PARAM_CHALLENGETYPE:-}" ]] && CHALLENGETYPE="${PARAM_CHALLENGETYPE}"
   [[ -n "${PARAM_KEY_ALGO:-}" ]] && KEY_ALGO="${PARAM_KEY_ALGO}"
 
-  [[ "${CHALLENGETYPE}" =~ (http-01|dns-01) ]] || _exiterr "Unknown challenge type ${CHALLENGETYPE}... can not continue."
+  echo "${CHALLENGETYPE}" | egrep '(http-01|dns-01)' >/dev/null 2>&1 || _exiterr "Unknown challenge type ${CHALLENGETYPE}... can not continue."
   if [[ "${CHALLENGETYPE}" = "dns-01" ]] && [[ -z "${HOOK}" ]]; then
    _exiterr "Challenge type dns-01 needs a hook script for deployment... can not continue."
   fi
-  [[ "${KEY_ALGO}" =~ ^(rsa|prime256v1|secp384r1)$ ]] || _exiterr "Unknown public key algorithm ${KEY_ALGO}... can not continue."
+  echo "${KEY_ALGO}" | egrep '^(rsa|prime256v1|secp384r1)$' >/dev/null 2>&1 || _exiterr "Unknown public key algorithm ${KEY_ALGO}... can not continue."
 }
 
 # Initialize system

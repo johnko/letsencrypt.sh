@@ -27,7 +27,7 @@ check_dependencies() {
   curl -V > /dev/null 2>&1
   set -e
   retcode="$?"
-  if [[ ! "${retcode}" = "0" ]] && [[ ! "${retcode}" = "2" ]]; then
+  if [ "${retcode}" != "0" ] && [ "${retcode}" != "2" ]; then
     _exiterr "This script requires curl."
   fi
 }
@@ -35,9 +35,9 @@ check_dependencies() {
 # Setup default config values, search for and load configuration files
 load_config() {
   # Check for config in various locations
-  if [[ -z "${CONFIG:-}" ]]; then
+  if [ -z "${CONFIG:-}" ]; then
     for check_config in "/etc/letsencrypt.sh" "/usr/local/etc/letsencrypt.sh" "${PWD}" "${SCRIPTDIR}"; do
-      if [[ -e "${check_config}/config.sh" ]]; then
+      if [ -e "${check_config}/config.sh" ]; then
         BASEDIR="${check_config}"
         CONFIG="${check_config}/config.sh"
         break
@@ -61,11 +61,11 @@ load_config() {
   CONTACT_EMAIL=
   LOCKFILE=
 
-  if [[ -z "${CONFIG:-}" ]]; then
+  if [ -z "${CONFIG:-}" ]; then
     echo "#" >&2
     echo "# !! WARNING !! No main config file found, using default config!" >&2
     echo "#" >&2
-  elif [[ -e "${CONFIG}" ]]; then
+  elif [ -e "${CONFIG}" ]; then
     echo "# INFO: Using main config file ${CONFIG}"
     BASEDIR="$(dirname "${CONFIG}")"
     # shellcheck disable=SC1090
@@ -74,16 +74,16 @@ load_config() {
     _exiterr "Specified config file doesn't exist."
   fi
 
-  if [[ -n "${CONFIG_D}" ]]; then
-    if [[ ! -d "${CONFIG_D}" ]]; then
+  if [ -n "${CONFIG_D}" ]; then
+    if [ ! -d "${CONFIG_D}" ]; then
       _exiterr "The path ${CONFIG_D} specified for CONFIG_D does not point to a directory." >&2
     fi
 
     for check_config_d in ${CONFIG_D}/*.sh; do
-      if [[ ! -e "${check_config_d}" ]]; then
+      if [ ! -e "${check_config_d}" ]; then
         echo "# !! WARNING !! Extra configuration directory ${CONFIG_D} exists, but no configuration found in it." >&2
         break
-      elif [[ -f "${check_config_d}" ]] && [[ -r "${check_config_d}" ]]; then
+      elif [ -f "${check_config_d}" ] && [ -r "${check_config_d}" ]; then
         echo "# INFO: Using additional config file ${check_config_d}"
         . ${check_config_d}
       else
@@ -96,18 +96,18 @@ load_config() {
   BASEDIR="${BASEDIR%%/}"
 
   # Check BASEDIR and set default variables
-  [[ -d "${BASEDIR}" ]] || _exiterr "BASEDIR does not exist: ${BASEDIR}"
+  [ -d "${BASEDIR}" ] || _exiterr "BASEDIR does not exist: ${BASEDIR}"
 
-  [[ -z "${PRIVATE_KEY}" ]] && PRIVATE_KEY="${BASEDIR}/private_key.pem"
-  [[ -z "${WELLKNOWN}" ]] && WELLKNOWN="${BASEDIR}/.acme-challenges"
-  [[ -z "${LOCKFILE}" ]] && LOCKFILE="${BASEDIR}/lock"
+  [ -z "${PRIVATE_KEY}" ] && PRIVATE_KEY="${BASEDIR}/private_key.pem"
+  [ -z "${WELLKNOWN}" ] && WELLKNOWN="${BASEDIR}/.acme-challenges"
+  [ -z "${LOCKFILE}" ] && LOCKFILE="${BASEDIR}/lock"
 
-  [[ -n "${PARAM_HOOK:-}" ]] && HOOK="${PARAM_HOOK}"
-  [[ -n "${PARAM_CHALLENGETYPE:-}" ]] && CHALLENGETYPE="${PARAM_CHALLENGETYPE}"
-  [[ -n "${PARAM_KEY_ALGO:-}" ]] && KEY_ALGO="${PARAM_KEY_ALGO}"
+  [ -n "${PARAM_HOOK:-}" ] && HOOK="${PARAM_HOOK}"
+  [ -n "${PARAM_CHALLENGETYPE:-}" ] && CHALLENGETYPE="${PARAM_CHALLENGETYPE}"
+  [ -n "${PARAM_KEY_ALGO:-}" ] && KEY_ALGO="${PARAM_KEY_ALGO}"
 
   echo "${CHALLENGETYPE}" | egrep '(http-01|dns-01)' >/dev/null 2>&1 || _exiterr "Unknown challenge type ${CHALLENGETYPE}... can not continue."
-  if [[ "${CHALLENGETYPE}" = "dns-01" ]] && [[ -z "${HOOK}" ]]; then
+  if [ "${CHALLENGETYPE}" = "dns-01" ] && [ -z "${HOOK}" ]; then
    _exiterr "Challenge type dns-01 needs a hook script for deployment... can not continue."
   fi
   echo "${KEY_ALGO}" | egrep '^(rsa|prime256v1|secp384r1)$' >/dev/null 2>&1 || _exiterr "Unknown public key algorithm ${KEY_ALGO}... can not continue."
@@ -119,7 +119,7 @@ init_system() {
 
   # Lockfile handling (prevents concurrent access)
   LOCKDIR="$(dirname "${LOCKFILE}")"
-  [[ -w "${LOCKDIR}" ]] || _exiterr "Directory ${LOCKDIR} for LOCKFILE ${LOCKFILE} is not writable, aborting."
+  [ -w "${LOCKDIR}" ] || _exiterr "Directory ${LOCKDIR} for LOCKFILE ${LOCKFILE} is not writable, aborting."
   ( set -C; date > "${LOCKFILE}" ) 2>/dev/null || _exiterr "Lock file '${LOCKFILE}' present, aborting."
   remove_lock() { rm -f "${LOCKFILE}"; }
   trap 'remove_lock' EXIT
@@ -138,13 +138,13 @@ init_system() {
 
   # Checking for private key ...
   register_new_key="no"
-  if [[ -n "${PARAM_PRIVATE_KEY:-}" ]]; then
+  if [ -n "${PARAM_PRIVATE_KEY:-}" ]; then
     # a private key was specified from the command line so use it for this run
     echo "Using private key ${PARAM_PRIVATE_KEY} instead of account key"
     PRIVATE_KEY="${PARAM_PRIVATE_KEY}"
   else
     # Check if private account key exists, if it doesn't exist yet generate a new one (rsa key)
-    if [[ ! -e "${PRIVATE_KEY}" ]]; then
+    if [ ! -e "${PRIVATE_KEY}" ]; then
       echo "+ Generating account key..."
       _openssl genrsa -out "${PRIVATE_KEY}" "${KEYSIZE}"
       register_new_key="yes"
@@ -159,25 +159,25 @@ init_system() {
   thumbprint="$(printf '{"e":"%s","kty":"RSA","n":"%s"}' "${pubExponent64}" "${pubMod64}" | openssl sha -sha256 -binary | urlbase64)"
 
   # If we generated a new private key in the step above we have to register it with the acme-server
-  if [[ "${register_new_key}" = "yes" ]]; then
+  if [ "${register_new_key}" = "yes" ]; then
     echo "+ Registering account key with letsencrypt..."
-    [[ ! -z "${CA_NEW_REG}" ]] || _exiterr "Certificate authority doesn't allow registrations."
+    [ ! -z "${CA_NEW_REG}" ] || _exiterr "Certificate authority doesn't allow registrations."
     # If an email for the contact has been provided then adding it to the registration request
-    if [[ -n "${CONTACT_EMAIL}" ]]; then
+    if [ -n "${CONTACT_EMAIL}" ]; then
       signed_request "${CA_NEW_REG}" '{"resource": "new-reg", "contact":["mailto:'"${CONTACT_EMAIL}"'"], "agreement": "'"$LICENSE"'"}' > /dev/null
     else
       signed_request "${CA_NEW_REG}" '{"resource": "new-reg", "agreement": "'"$LICENSE"'"}' > /dev/null
     fi
   fi
 
-  if [[ "${CHALLENGETYPE}" = "http-01" && ! -d "${WELLKNOWN}" ]]; then
+  if [ "${CHALLENGETYPE}" = "http-01" ] && [ ! -d "${WELLKNOWN}" ]; then
       _exiterr "WELLKNOWN directory doesn't exist, please create ${WELLKNOWN} and set appropriate permissions."
   fi
 }
 
 # Different sed version for different os types...
 _sed() {
-  if [[ "${OSTYPE}" = "Linux" ]]; then
+  if [ "${OSTYPE}" = "Linux" ]; then
     sed -r "${@}"
   else
     sed -E "${@}"
@@ -214,7 +214,7 @@ _openssl() {
   out="$(openssl "${@}" 2>&1)"
   res=$?
   set -e
-  if [[ $res -ne 0 ]]; then
+  if [ $res -ne 0 ]; then
     echo "  + ERROR: failed to run $* (Exitcode: $res)" >&2
     echo >&2
     echo "Details:" >&2
@@ -227,17 +227,17 @@ _openssl() {
 http_request() {
   tempcont="$(mktemp -t XXXXXX)"
 
-  if [[ "${1}" = "head" ]]; then
+  if [ "${1}" = "head" ]; then
     statuscode="$(curl -s -w "%{http_code}" -o "${tempcont}" "${2}" -I)"
-  elif [[ "${1}" = "get" ]]; then
+  elif [ "${1}" = "get" ]; then
     statuscode="$(curl -s -w "%{http_code}" -o "${tempcont}" "${2}")"
-  elif [[ "${1}" = "post" ]]; then
+  elif [ "${1}" = "post" ]; then
     statuscode="$(curl -s -w "%{http_code}" -o "${tempcont}" "${2}" -d "${3}")"
   else
     _exiterr "Unknown request method: ${1}"
   fi
 
-  if [[ ! "${statuscode:0:1}" = "2" ]]; then
+  if [ "${statuscode:0:1}" != "2" ]; then
     echo "  + ERROR: An error occurred while sending ${1}-request to ${2} (Status ${statuscode})" >&2
     echo >&2
     echo "Details:" >&2
@@ -245,12 +245,12 @@ http_request() {
     rm -f "${tempcont}"
 
     # Wait for hook script to clean the challenge if used
-    if [[ -n "${HOOK}" ]] && [[ -n "${challenge_token:+set}" ]]; then
+    if [ -n "${HOOK}" ] && [ -n "${challenge_token:+set}" ]; then
       ${HOOK} "clean_challenge" '' "${challenge_token}" "${keyauth}"
     fi
 
     # remove temporary domains.txt file if used
-    [[ -n "${PARAM_DOMAIN:-}" ]] && rm "${DOMAINS_TXT}"
+    [ -n "${PARAM_DOMAIN:-}" ] && rm "${DOMAINS_TXT}"
     exit 1
   fi
 
@@ -320,7 +320,7 @@ sign_csr() {
     altnames="$( extract_altnames "$csr" )"
   fi
 
-  if [[ -z "${CA_NEW_AUTHZ}" ]] || [[ -z "${CA_NEW_CERT}" ]]; then
+  if [ -z "${CA_NEW_AUTHZ}" ] || [ -z "${CA_NEW_CERT}" ]; then
     _exiterr "Certificate authority doesn't allow certificate signing"
   fi
 
@@ -336,7 +336,7 @@ sign_csr() {
     challenge_token="$(printf '%s' "${challenge}" | get_json_string_value token | _sed 's/[^A-Za-z0-9_\-]/_/g')"
     challenge_uri="$(printf '%s' "${challenge}" | get_json_string_value uri)"
 
-    if [[ -z "${challenge_token}" ]] || [[ -z "${challenge_uri}" ]]; then
+    if [ -z "${challenge_token}" ] || [ -z "${challenge_uri}" ]; then
       _exiterr "Can't retrieve challenges (${response})"
     fi
 
@@ -357,7 +357,7 @@ sign_csr() {
     esac
 
     # Wait for hook script to deploy the challenge if used
-    [[ -n "${HOOK}" ]] && ${HOOK} "deploy_challenge" "${altname}" "${challenge_token}" "${keyauth_hook}"
+    [ -n "${HOOK}" ] && ${HOOK} "deploy_challenge" "${altname}" "${challenge_token}" "${keyauth_hook}"
 
     # Ask the acme-server to verify our challenge and wait until it is no longer pending
     echo " + Responding to challenge for ${altname}..."
@@ -365,20 +365,20 @@ sign_csr() {
 
     status="$(printf '%s\n' "${result}" | get_json_string_value status)"
 
-    while [[ "${status}" = "pending" ]]; do
+    while [ "${status}" = "pending" ]; do
       sleep 1
       result="$(http_request get "${challenge_uri}")"
       status="$(printf '%s\n' "${result}" | get_json_string_value status)"
     done
 
-    [[ "${CHALLENGETYPE}" = "http-01" ]] && rm -f "${WELLKNOWN}/${challenge_token}"
+    [ "${CHALLENGETYPE}" = "http-01" ] && rm -f "${WELLKNOWN}/${challenge_token}"
 
     # Wait for hook script to clean the challenge if used
-    if [[ -n "${HOOK}" ]] && [[ -n "${challenge_token}" ]]; then
+    if [ -n "${HOOK}" ] && [ -n "${challenge_token}" ]; then
       ${HOOK} "clean_challenge" "${altname}" "${challenge_token}" "${keyauth_hook}"
     fi
 
-    if [[ "${status}" = "valid" ]]; then
+    if [ "${status}" = "valid" ]; then
       echo " + Challenge is valid!"
     else
       _exiterr "Challenge is invalid! (returned: ${status}) (result: ${result})"
@@ -412,19 +412,19 @@ sign_domain() {
   timestamp="$(date +%s)"
 
   echo " + Signing domains..."
-  if [[ -z "${CA_NEW_AUTHZ}" ]] || [[ -z "${CA_NEW_CERT}" ]]; then
+  if [ -z "${CA_NEW_AUTHZ}" ] || [ -z "${CA_NEW_CERT}" ]; then
     _exiterr "Certificate authority doesn't allow certificate signing"
   fi
 
   # If there is no existing certificate directory => make it
-  if [[ ! -e "${BASEDIR}/certs/${domain}" ]]; then
+  if [ ! -e "${BASEDIR}/certs/${domain}" ]; then
     echo " + Creating new directory ${BASEDIR}/certs/${domain} ..."
     mkdir -p "${BASEDIR}/certs/${domain}"
   fi
 
   privkey="privkey.pem"
   # generate a new private key if we need or want one
-  if [[ ! -f "${BASEDIR}/certs/${domain}/privkey.pem" ]] || [[ "${PRIVATE_KEY_RENEW}" = "yes" ]]; then
+  if [ ! -f "${BASEDIR}/certs/${domain}/privkey.pem" ] || [ "${PRIVATE_KEY_RENEW}" = "yes" ]; then
     echo " + Generating private key..."
     privkey="privkey-${timestamp}.pem"
     case "${KEY_ALGO}" in
@@ -460,7 +460,7 @@ sign_domain() {
   cat "${BASEDIR}/certs/${domain}/chain-${timestamp}.pem" >> "${BASEDIR}/certs/${domain}/fullchain-${timestamp}.pem"
 
   # Update symlinks
-  [[ "${privkey}" = "privkey.pem" ]] || ln -sf "privkey-${timestamp}.pem" "${BASEDIR}/certs/${domain}/privkey.pem"
+  [ "${privkey}" = "privkey.pem" ] || ln -sf "privkey-${timestamp}.pem" "${BASEDIR}/certs/${domain}/privkey.pem"
 
   ln -sf "chain-${timestamp}.pem" "${BASEDIR}/certs/${domain}/chain.pem"
   ln -sf "fullchain-${timestamp}.pem" "${BASEDIR}/certs/${domain}/fullchain.pem"
@@ -468,7 +468,7 @@ sign_domain() {
   ln -sf "cert-${timestamp}.pem" "${BASEDIR}/certs/${domain}/cert.pem"
 
   # Wait for hook script to clean the challenge and to deploy cert if used
-  [[ -n "${HOOK}" ]] && ${HOOK} "deploy_cert" "${domain}" "${BASEDIR}/certs/${domain}/privkey.pem" "${BASEDIR}/certs/${domain}/cert.pem" "${BASEDIR}/certs/${domain}/fullchain.pem"
+  [ -n "${HOOK}" ] && ${HOOK} "deploy_cert" "${domain}" "${BASEDIR}/certs/${domain}/privkey.pem" "${BASEDIR}/certs/${domain}/cert.pem" "${BASEDIR}/certs/${domain}/fullchain.pem"
 
   unset challenge_token
   echo " + Done!"
@@ -479,10 +479,10 @@ sign_domain() {
 command_sign_domains() {
   init_system
 
-  if [[ -n "${PARAM_DOMAIN:-}" ]]; then
+  if [ -n "${PARAM_DOMAIN:-}" ]; then
     DOMAINS_TXT="$(mktemp -t XXXXXX)"
     printf -- "${PARAM_DOMAIN}" > "${DOMAINS_TXT}"
-  elif [[ -e "${BASEDIR}/domains.txt" ]]; then
+  elif [ -e "${BASEDIR}/domains.txt" ]; then
     DOMAINS_TXT="${BASEDIR}/domains.txt"
   else
     _exiterr "domains.txt not found and --domain not given"
@@ -496,19 +496,19 @@ command_sign_domains() {
 
     force_renew="${PARAM_FORCE:-no}"
 
-    if [[ -z "${morenames}" ]];then
+    if [ -z "${morenames}" ];then
       echo "Processing ${domain}"
     else
       echo "Processing ${domain} with alternative names: ${morenames}"
     fi
 
-    if [[ -e "${cert}" ]]; then
+    if [ -e "${cert}" ]; then
       printf " + Checking domain name(s) of existing cert..."
 
       certnames="$(openssl x509 -in "${cert}" -text -noout | grep DNS: | _sed 's/DNS://g' | tr -d ' ' | tr ',' '\n' | sort -u | tr '\n' ' ' | _sed 's/ $//')"
       givennames="$(echo "${domain}" "${morenames}"| tr ' ' '\n' | sort -u | tr '\n' ' ' | _sed 's/ $//' | _sed 's/^ //')"
 
-      if [[ "${certnames}" = "${givennames}" ]]; then
+      if [ "${certnames}" = "${givennames}" ]; then
         echo " unchanged."
       else
         echo " changed!"
@@ -520,14 +520,14 @@ command_sign_domains() {
       fi
     fi
 
-    if [[ -e "${cert}" ]]; then
+    if [ -e "${cert}" ]; then
       echo " + Checking expire date of existing cert..."
       valid="$(openssl x509 -enddate -noout -in "${cert}" | cut -d= -f2- )"
 
       printf " + Valid till %s " "${valid}"
       if openssl x509 -checkend $((RENEW_DAYS * 86400)) -noout -in "${cert}"; then
         printf "(Longer than %d days). " "${RENEW_DAYS}"
-        if [[ "${force_renew}" = "yes" ]]; then
+        if [ "${force_renew}" = "yes" ]; then
           echo "Ignoring because renew was forced!"
         else
           echo "Skipping!"
@@ -543,7 +543,7 @@ command_sign_domains() {
   done
 
   # remove temporary domains.txt file if used
-  [[ -n "${PARAM_DOMAIN:-}" ]] && rm -f "${DOMAINS_TXT}"
+  [ -n "${PARAM_DOMAIN:-}" ] && rm -f "${DOMAINS_TXT}"
 
   exit 0
 }
@@ -568,20 +568,20 @@ command_sign_csr() {
 command_revoke() {
   init_system
 
-  [[ -n "${CA_REVOKE_CERT}" ]] || _exiterr "Certificate authority doesn't allow certificate revocation."
+  [ -n "${CA_REVOKE_CERT}" ] || _exiterr "Certificate authority doesn't allow certificate revocation."
 
   cert="${1}"
-  if [[ -L "${cert}" ]]; then
+  if [ -L "${cert}" ]; then
     # follow symlink and use real certificate name (so we move the real file and not the symlink at the end)
     local link_target
     link_target="$(readlink -n "${cert}")"
-    if [[ "${link_target}" =~ ^/ ]]; then
+    if echo "${link_target}" | grep '^/' >/dev/null 2>&1 ; then
       cert="${link_target}"
     else
       cert="$(dirname "${cert}")/${link_target}"
     fi
   fi
-  [[ -f "${cert}" ]] || _exiterr "Could not find certificate ${cert}"
+  [ -f "${cert}" ] || _exiterr "Could not find certificate ${cert}"
 
   echo "Revoking ${cert}"
 
@@ -601,14 +601,14 @@ command_help() {
   printf "Default command: help\n\n"
   echo "Commands:"
   grep -e '^[[:space:]]*# Usage:' -e '^[[:space:]]*# Description:' -e '^command_.*()[[:space:]]*{' "${0}" | while read -r usage; read -r description; read -r command; do
-    if [[ ! "${usage}" =~ Usage ]] || [[ ! "${description}" =~ Description ]] || [[ ! "${command}" =~ ^command_ ]]; then
+    if ! echo "${usage}" | grep 'Usage' >/dev/null 2>&1 || ! echo "${description}" | grep 'Description' >/dev/null 2>&1 || ! echo "${command}" | grep '^command_' >/dev/null 2>&1 ; then
       _exiterr "Error generating help text."
     fi
     printf " %-32s %s\n" "${usage##"# Usage: "}" "${description##"# Description: "}"
   done
   printf -- "\nParameters:\n"
   grep -E -e '^[[:space:]]*# PARAM_Usage:' -e '^[[:space:]]*# PARAM_Description:' "${0}" | while read -r usage; read -r description; do
-    if [[ ! "${usage}" =~ Usage ]] || [[ ! "${description}" =~ Description ]]; then
+    if ! echo "${usage}" | grep 'Usage' >/dev/null 2>&1 || ! echo "${description}" | grep 'Description' >/dev/null 2>&1 ; then
       _exiterr "Error generating help text."
     fi
     printf " %-32s %s\n" "${usage##"# PARAM_Usage: "}" "${description##"# PARAM_Description: "}"
@@ -627,22 +627,22 @@ command_env() {
 main() {
   COMMAND=""
   set_command() {
-    [[ -z "${COMMAND}" ]] || _exiterr "Only one command can be executed at a time. See help (-h) for more information."
+    [ -z "${COMMAND}" ] || _exiterr "Only one command can be executed at a time. See help (-h) for more information."
     COMMAND="${1}"
   }
 
   check_parameters() {
-    if [[ -z "${1:-}" ]]; then
+    if [ -z "${1:-}" ]; then
       echo "The specified command requires additional parameters. See help:" >&2
       echo >&2
       command_help >&2
       exit 1
-    elif [[ "${1:0:1}" = "-" ]]; then
+    elif [ "${1:0:1}" = "-" ]; then
       _exiterr "Invalid argument: ${1}"
     fi
   }
 
-  [[ -z "${@}" ]] && eval set -- "--help"
+  [ -z "${@}" ] && eval set -- "--help"
 
   while (( "${#}" )); do
     case "${1}" in
@@ -678,7 +678,7 @@ main() {
       --domain|-d)
         shift 1
         check_parameters "${1:-}"
-        if [[ -z "${PARAM_DOMAIN:-}" ]]; then
+        if [ -z "${PARAM_DOMAIN:-}" ]; then
           PARAM_DOMAIN="${1}"
         else
           PARAM_DOMAIN="${PARAM_DOMAIN} ${1}"
